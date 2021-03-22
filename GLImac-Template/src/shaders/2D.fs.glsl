@@ -3,9 +3,10 @@ precision mediump float;
 
 out vec3 fFragColor;
 
+uniform vec3 color;
+
 void main()
 {
-   vec3 col = vec3(1, 0, 0);
-   fFragColor = col;
+    fFragColor = color;
 }
 

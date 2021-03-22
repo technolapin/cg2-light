@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <string.h>
 #include <math.h>
+#include <random>
 
 using namespace glimac;
 
