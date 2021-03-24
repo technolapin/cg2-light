@@ -31,3 +31,16 @@ struct Vertex
 {
     glm::vec2 pos;
 };
+
+const float EPSILON = 0.000001;
+using Mvec = c2ga::Mvec<float>;
+
+
+#include "GLObject.hpp"
+#include "instance.hpp"
+#include "cga.hpp"
+#include "gl_misc.hpp"
+
+#include "optics.cpp"
+
+#include "tree.hpp"

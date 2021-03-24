@@ -8,6 +8,6 @@ uniform vec3 color;
 void main()
 {
     float power = dot(color, color)/3.0;
-    fFragColor = vec4(color/power, power);
+    fFragColor = vec4(color, power);
 }
 
