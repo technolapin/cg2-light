@@ -26,6 +26,8 @@ struct Instance
         glUniform3fv(color_loc,
                      1,
                      glm::value_ptr(color));
+
+        // std::cout << "GL COLOR " << color[0] << " " << color[1] << " " << color[2] << std::endl;
     }
 
     Instance
@@ -220,21 +222,35 @@ namespace CGA
     }
 
     Mvec
+    unit_vector(float x, float y)
+    {
+        const auto u = CGA::vector(x, y);
+        return u/u.norm();
+    }
+
+    Mvec
     unit_vector(float angle)
     {
         return CGA::vector(std::cos(angle), std::sin(angle));
     }
-    
+
+    Mvec
+    unit_vector(const Mvec & pt1, const Mvec & pt2)
+    {
+        return CGA::unit_vector(pt2[c2ga::E1] - pt1[c2ga::E1],
+                                pt2[c2ga::E2] - pt1[c2ga::E2]);
+    }
+
     /** Creates a point of given center and radius */
     Mvec
-    circle(Mvec center, float radius)
+    circle(const Mvec center, const float radius)
     {
         return !(center - radius*radius/2.0*c2ga::ei<float>());
     }
 
     /** Creates a line passing through the two given points */
     Mvec
-     line(Mvec p1, Mvec p2)
+    line(Mvec p1, Mvec p2)
     {
         return p1 ^ p2 ^ c2ga::ei<float>();
     }
@@ -248,6 +264,12 @@ namespace CGA
         return c2ga::point<float>(x, y);
     }
 
+    float
+    dist2(Mvec p1, Mvec p2)
+    {
+        return - 2.0 * p1|p2;
+    }
+    
     /**
        Creates a point of given glm coordinates
     */
@@ -309,10 +331,6 @@ namespace CGA
     apply_versor(const Mvec & versor, const Mvec & obj)
     {
         auto conj = CGA::conjugate_versor(versor);
-        std::cout << "V  = " << versor << std::endl; 
-        std::cout << "V~ = " << conj << std::endl; 
-        std::cout << "VP " << versor*obj << std::endl;
-        std::cout << "VPV~ " << versor*obj*conj << std::endl;
         return versor*obj*conj;
     }
 
@@ -481,7 +499,7 @@ namespace CGA
     }
     
     Mvec
-    reflect(const Mvec & ray_dir, const Mvec & normal, const Mvec & inter)
+    reflect(const Mvec & ray_dir, const Mvec & normal)
     {
         auto reflector = normal;
 
@@ -543,7 +561,7 @@ namespace CGA
         auto normal = line_normal(seg^CGA::ei());
 
         // a line that is parallel to the reflexion
-        auto reflected = reflect(ray_dir, normal, inter);
+        auto reflected = reflect(ray_dir, normal);
 
         // ratio = n1/n2
         auto refracted = refract(ray_dir, normal, 0.5);
@@ -587,6 +605,7 @@ struct Ray
     Mvec ray;
     Mvec dir;
     Mvec source;
+    
     glm::vec3 color;
 
     Ray(Mvec pt, Mvec dir, glm::vec3 col):
@@ -597,8 +616,12 @@ struct Ray
     {}
 
     template<class Obj>
-    std::optional<std::array<Ray, 2>>
-    reflect(const Obj & object) const;
+    std::array<std::optional<Ray>, 2>
+    reflect(const Obj & object, const Mvec & valid_inter) const;
+
+    template<class Obj>
+    std::optional<Mvec>
+    intersect(const Obj & object) const;
 
     GLObject
     to_gl_object() const
@@ -607,6 +630,21 @@ struct Ray
         auto far = CGA::extractPairPoint(CGA::intersect(ray, outer_cir))[1];
         return CGA::segment_object(source^far);
     }
+
+    float
+    power2() const
+    {
+        return glm::dot(color, color);
+    }
+
+    Mvec
+    infinity() const
+    {
+        auto outer_cir = CGA::circle(CGA::e0(), 2.0);
+        auto far = CGA::extractPairPoint(CGA::intersect(ray, outer_cir))[1];
+        return far;
+    }
+    
 };
 
 struct Segment
@@ -624,50 +662,156 @@ struct Segment
         color(col),
         optic_ratio(ratio)
     {}
+
+};
+
+
+float
+reflection_coef(float x, float nu)
+{
+    return 1.0 - 2.0*(std::pow(1+nu*x, -2) + std::pow(x+nu, -2));
+}
+
+
+template<>
+std::optional<Mvec>
+Ray::intersect(const Segment & segment) const
+{
+    const auto inter = CGA::intersect_segment(segment.segment, ray);
+    // enforcing type is mandatory because Mvec comparison will cause weird behaviors
+    const float sign = (inter - source) | dir;
+    
+    if (sign > EPSILON && inter.grade() > 0)
+    {
+        return inter;
+    }
+    else
+    {
+        return {};
+    }
+}
+template<>
+std::array<std::optional<Ray>, 2>
+Ray::reflect(const Segment & segment, const Mvec & valid_inter) const
+{
+    // a line that is parallel to the reflexion
+    auto reflected = CGA::reflect(dir, segment.normal);
+
+    // ratio = n1/n2
+    auto refracted = CGA::refract(dir, segment.normal, segment.optic_ratio);
+
+    /*
+      Ireflect + Irefract + Iabsorb = Iinput
+
+    */
+    const float cos_theta_in = std::abs(dir|segment.tangent);
+    const float cos_theta_tr = std::abs(refracted|segment.tangent);
+    const float nu = segment.optic_ratio;
+
+    const float x = cos_theta_in/cos_theta_tr;
+
+    // power reflected (angular part)
+    const float R = std::min(1.0f, std::max(reflection_coef(x, nu), 0.0f));
+    const float T = 1.0 - R;
+
+    auto non_absorbed = color*segment.color;
+
+    auto col_reflected = non_absorbed*R;
+    auto col_transmited = non_absorbed*T;
+
+    std::optional<Ray> ray_reflected = (R > EPSILON)?
+        std::optional<Ray>{Ray(valid_inter, reflected, col_reflected)}
+        :std::nullopt;
+    std::optional<Ray> ray_transmited = (T > EPSILON)?
+        std::optional<Ray>{Ray(valid_inter, refracted, col_transmited)}
+        :std::nullopt;
+    std::array<std::optional<Ray>, 2> result = {ray_reflected, ray_transmited};
+    return result;
+}
+
+
+
+
+struct Circle
+{
+    Mvec circle;
+    Mvec center;
+    float radius;
+    
+    glm::vec3 color;
+    float optic_ratio = 1.0;
+    
+    Circle(const glm::vec2 center,
+           const float radius,
+           const glm::vec3 col,
+           const float ratio):
+        circle(CGA::circle(CGA::point(center), radius)),
+        center(CGA::point(center)),
+        radius(radius),
+        color(col),
+        optic_ratio(ratio)
+    {
+        std::cout << "CIRCLE = " << circle << std::endl;
+        std::cout << "!CIRCLE = " << !circle << std::endl;
+    }
+
+    bool
+    is_inside(const Mvec & pt) const
+    {
+        return CGA::dist2(pt, center) <= radius*radius;
+    }
+    
+    Mvec
+    normal(const Mvec & pt) const
+    {
+        const auto sign = (is_inside(pt))? -1.0:1.0;
+        const auto u = sign*(pt - center); // degenerate
+        return CGA::unit_vector(u[c2ga::E1], u[c2ga::E2]);
+    }
+
+    Mvec
+    tangent(const Mvec & pt) const
+    {
+        const auto n = normal(pt);
+        return -n[c2ga::E2]*CGA::e1() + n[c2ga::E1]*CGA::e2();
+    }
+
+    
 };
 
 
 template<>
-std::optional<std::array<Ray, 2>>
-Ray::reflect(const Segment & segment) const
+std::optional<Mvec>
+Ray::intersect(const Circle & circle) const
 {
-    auto inter = CGA::intersect_segment(segment.segment, ray);
-    auto v = (inter - source);
-    float sign = v | dir;
+    const auto inters = CGA::extractPairPoint(CGA::intersect(ray, circle.circle));
 
-    if (sign > EPSILON && inter.grade() > 0)
+    // enforcing type is mandatory because Mvec comparison will cause weird behaviors
+    const float sign0 = (inters[0] - source) | dir;
+    const float sign1 = (inters[1] - source) | dir;
+
+    const bool is_0_valid = (sign0 > EPSILON && inters[0].grade() > 0);
+    const bool is_1_valid = (sign1 > EPSILON && inters[1].grade() > 0);
+
+    if (is_0_valid && is_1_valid)
     {
-        // a line that is parallel to the reflexion
-        auto reflected = CGA::reflect(dir, segment.normal, inter);
-
-        // ratio = n1/n2
-        auto refracted = CGA::refract(dir, segment.normal, segment.optic_ratio);
-
-        /*
-          Ireflect + Irefract + Iabsorb = Iinput
-
-         */
-        const float cos_theta_in = std::abs(dir|segment.tangent);
-        const float cos_theta_tr = std::abs(refracted|segment.tangent);
-        const float nu = segment.optic_ratio;
-
-        const float x = cos_theta_in/cos_theta_tr;
-
-        // power reflected (angular part)
-        const float R = 1.0 - 2.0*(std::pow(1+nu*x, -2) + std::pow(x+nu, -2));
-        const float T = 1.0 - R;
-
-        auto absorbed = color*segment.color;
-        
-        auto non_absorbed = (glm::vec3(1.0) - absorbed);
-
-        auto col_reflected = non_absorbed*R; 
-        auto col_transmited = non_absorbed*T;
-        
-        auto ray_reflected = Ray(inter, reflected, col_reflected);
-        auto ray_transmited = Ray(inter, refracted, col_transmited);
-        std::array<Ray, 2> result = {ray_reflected, ray_transmited};
-        return result;
+        const auto c = !circle.circle;
+        if ((((float) (inters[0] - inters[1]) | c)) >= 0.0)
+        {
+            return inters[0];
+        }
+        else
+        {
+            return inters[1];
+        }
+    }
+    else if (is_0_valid)
+    {
+        return inters[0];
+    }
+    else if (is_1_valid)
+    {
+        return inters[1];
     }
     else
     {
@@ -675,9 +819,137 @@ Ray::reflect(const Segment & segment) const
     }
 }
 
+template<>
+std::array<std::optional<Ray>, 2>
+Ray::reflect(const Circle & circle, const Mvec & valid_inter) const
+{
+    auto normal = circle.normal(valid_inter);
+    auto tangent = circle.tangent(valid_inter);
+    auto reflected = CGA::reflect(dir, normal);
+
+    // ratio = n1/n2
+    auto refracted = CGA::refract(dir, normal, circle.optic_ratio);
+
+    /*
+      Ireflect + Irefract + Iabsorb = Iinput
+    */
+    
+    const float cos_theta_in = std::abs(dir|tangent);
+    const float cos_theta_tr = std::abs(refracted|tangent);
+    const float nu = circle.optic_ratio;
+
+    const float x = cos_theta_in/cos_theta_tr;
+
+    // power reflected (angular part)
+    const float R = std::min(1.0f, std::max(reflection_coef(x, nu), 0.0f));
+    const float T = 1.0 - R;
+
+    auto non_absorbed = color*circle.color;
+
+    auto col_reflected = non_absorbed*R;
+    auto col_transmited = non_absorbed*T;
+
+    std::optional<Ray> ray_reflected = (R > EPSILON)?
+        std::optional<Ray>{Ray(valid_inter, reflected, col_reflected)}
+        :std::nullopt;
+    std::optional<Ray> ray_transmited = (T > EPSILON)?
+        std::optional<Ray>{Ray(valid_inter, refracted, col_transmited)}
+        :std::nullopt;
+    std::array<std::optional<Ray>, 2> result = {ray_reflected, ray_transmited};
+    return result;
+}
 
 
 
+
+template<class T>
+struct BinTree
+{
+    std::vector<T> nodes;
+    std::vector<std::array<int, 3>> relations; // [mother, child a, child b]
+
+    BinTree() = default;
+    BinTree(T root):
+        nodes({root}),
+        relations({{-1, -1, -1}})
+    {}
+
+    int
+    push_left(T node, int mother)
+    {
+        auto i = nodes.size();
+        nodes.push_back(node);
+        relations.push_back({mother, -1, -1});
+        relations[mother][1] = i;
+        return i;
+    }
+    int
+    push_right(T node, int mother)
+    {
+        auto i = nodes.size();
+        nodes.push_back(node);
+        relations.push_back({mother, -1, -1});
+        relations[mother][2] = i;
+        return i;
+    }
+
+    int
+    mother(int child)
+    {
+        return relations[child][0];
+    }
+
+    int
+    child_left(int mother)
+    {
+        return relations[mother][1];
+    }
+
+    int
+    child_right(int mother)
+    {
+        return relations[mother][2];
+    }
+    
+};
+
+template<class T>
+struct Tree
+{
+    std::vector<T> nodes;
+    std::vector<std::vector<int>> childrn;
+    std::vector<int> mothers;
+    
+    Tree() = default;
+
+    int
+    push(T node, int mother)
+    {
+        auto i = nodes.size();
+        nodes.push_back(node);
+        childrn.push_back({});
+        mothers.push_back(mother);
+        return i;
+    }
+
+    int
+    mother(int child) const
+    {
+        return mother[child];
+    }
+
+    const std::vector<int> &
+    children(int mother) const
+    {
+        return childrn[mother];
+    }
+
+};
+
+
+
+
+/*
 void
 ray_tracer(Scene & scene)
 {
@@ -786,13 +1058,16 @@ ray_tracer(Scene & scene)
     
 }
 
+
+
+
 void
 ray_tracer2(Scene & scene)
 {
     auto pas = 0.1;
     auto cir = disk(10);
     Instance inst;
-    auto segment = Segment({0.5, -0.8}, {0.7, 0.9}, {0.1, 0.2, 0.2}, 0.5);
+    auto segment = Segment({0.5, -0.8}, {0.7, 0.9}, {0.1, 0.2, 0.2}, 4.);
 
     scene.push(CGA::segment_object(segment.segment), inst.colored(segment.color));
     
@@ -850,8 +1125,291 @@ ray_tracer2(Scene & scene)
 
     
 }
+*/
+void
+ray_tracer3(Scene & scene)
+{
+    auto pas = 0.01;
+    auto cir = disk(10);
+    auto cir_empty = circle(100);
+    Instance inst;
+//    auto segment = Segment({0.5, 0.8}, {0.4, -0.8}, {0.1, 0.9, 0.9}, 10.0);
+    auto segment = Circle({0., 0.}, 0.2, {0.1, 0.9, 0.9}, 2.0);
+    auto outer_circle = CGA::circle(CGA::e0(), 2.0);
+    scene.push(cir_empty, Instance()
+               .translate(CGA::point_to_glm(segment.center))
+               .scale(segment.radius)
+               .colored(segment.color));
+    
+    
+    auto pt_source = CGA::point(-0.5, 0.5);
+    {
+        auto pos =  CGA::point_to_glm(pt_source);
+        Instance inst;
+        auto inst2 = inst.translate(pos).colored(1., 1., 0.).scale(0.01);
+        scene.push(cir, inst2);
+    }
+    
+    std::vector<BinTree<Ray>> rays;
+
+    for (auto alpha = 0.; alpha < 2.0*M_PI; alpha+=pas)
+    {
+        auto trans = CGA::translator(CGA::vector(0.1, 0.0));
+        auto motor = CGA::motor(alpha, pt_source);
+        auto versor = motor*trans;
+        auto point2 = CGA::apply_versor(versor, pt_source);
+
+        auto pos = CGA::point_to_glm(point2);
+
+        scene.push(cir, inst.translate(pos)
+                   .colored(1., 1., 1.)
+                   .scale(0.002));
+
+        auto dir = CGA::unit_vector(alpha);
+
+        auto ray = Ray(point2, dir, {1.0, 1.0, 0.1});
+
+        std::cout << "RAY COLOR " << ray.color[0] << " " << ray.color[1] << " " << ray.color[2] << std::endl;
+//        scene.push(ray.to_gl_object(), inst.colored(ray.color));
+
+        BinTree tree(ray);
+        rays.push_back(tree);
+        
+    } 
+
+    for (auto & tree: rays)
+    {
+        std::vector<int> stack = {0};
+
+        while (stack.size() != 0)
+        {
+            int mother = stack.back();
+            stack.pop_back();
+            const auto & ray = tree.nodes[mother];
+
+            // loop over segments (one for now)
+            {
+                const auto inter = ray.intersect(segment);
+                if (inter)
+                {
+                    const auto refs = ray.reflect(segment, inter.value());
+                    const auto refl = refs[0];
+                    const auto refr = refs[1];
+ 
+                    if (refl)
+                    {
+                        int left = tree.push_left(refl.value(), mother); 
+                        if (refl.value().power2() >= 0.1)
+                        {
+                            stack.push_back(left);
+                        }
+                    }
+                    
+                    if (refr)
+                    {
+                        int right = tree.push_right(refr.value(), mother);
+                        if (refr.value().power2() >= 0.1)
+                        {
+                            stack.push_back(right);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    for (auto & tree: rays)
+    {
+        for (auto parent = 0; parent < tree.nodes.size(); ++parent)
+        {
+            auto & ray = tree.nodes[parent];
+            auto & pt0 = ray.source;
+            auto & color = ray.color;
+
+            auto left = tree.child_left(parent); 
+            auto right = tree.child_right(parent);
+
+            auto ptl = (left >= 0)?tree.nodes[left].source : ray.infinity();
+
+            auto seg_refl = pt0^ptl;
+
+            std::cout << "ACTUAL COLOR " << color[0] << " " << color[1] << " " << color[2] << std::endl;
+
+            scene.push(CGA::segment_object(seg_refl), inst.colored(color));
+
+            
+            //auto ptr = (left >= 0)?tree.nodes[left].source : ray.infinity();
+            //auto seg_refr = pt0^ptr;  
+            //scene.push(CGA::segment_object(seg_refr), inst.colored(color));
+         
+        }
+    }
 
     
+}
+
+
+/*
+
+void
+ray_tracer4(Scene & scene)
+{
+    auto pas = 0.1;
+    auto cir = disk(10);
+    Instance inst;
+    std::vector<Segment> segments;
+
+    {
+        auto color = glm::vec3(0.1, 0.9, 0.9);
+        auto optic = 4.0;
+        std::vector<glm::vec2> vertices =
+            {
+                {0.4, -0.4},
+                {0.7, -0.3},
+                {0.7, 0.},
+                {0.4, 0.2}
+            };
+
+        for (auto i = 0; i < vertices.size(); ++i)
+        {
+            auto v0 = vertices[i];
+            auto v1 = vertices[(i+1) % vertices.size()];
+            
+            segments.push_back(Segment(v0, v1, color, optic));
+            
+        }
+    }    
+    
+    auto pt_source = CGA::point(-0.5, 0.5);
+    {
+        auto pos =  CGA::point_to_glm(pt_source);
+        Instance inst;
+        auto inst2 = inst.translate(pos).colored(1., 1., 0.).scale(0.01);
+        scene.push(cir, inst2);
+    }
+    
+    std::vector<BinTree<Ray>> rays;
+
+    for (auto alpha = 0.; alpha < 2.0*M_PI; alpha+=pas)
+    {
+        auto trans = CGA::translator(CGA::vector(0.1, 0.0));
+        auto motor = CGA::motor(alpha, pt_source);
+        auto versor = motor*trans;
+        auto point2 = CGA::apply_versor(versor, pt_source);
+
+        auto pos = CGA::point_to_glm(point2);
+
+        scene.push(cir, inst.translate(pos)
+                   .colored(1., 1., 1.)
+                   .scale(0.002));
+
+        auto dir = CGA::unit_vector(alpha);
+
+        auto ray = Ray(point2, dir, {1.0, 1.0, 0.1});
+
+
+        BinTree tree(ray);
+        rays.push_back(tree);
+        
+    } 
+
+    for (auto & tree: rays)
+    {
+        std::vector<int> stack = {0};
+
+        while (stack.size() != 0)
+        {
+            std::cout << "MARCO FOR! \n";
+            int mother = stack.back();
+            stack.pop_back();
+            const auto & ray = tree.nodes[mother];
+            std::cout << "POLO FOR! \n";
+
+            auto closest_inter_ref = ray.infinity();
+            auto closest_dist = 1000000.0;
+            
+            // loop over segments (one for now)
+            for (const auto & segment: segments)
+            {
+
+                const auto inter_refs = ray.reflect(segment);
+                if (inter_refs)
+                {
+                    const auto & inter = inter_refs.value().first;
+                    const auto dist = CGA::dist2(ray.source, inter);
+                    if (closest_dist > dist)
+                    {
+                        closest_dist = dist;
+                        closest_inter = inter;
+                    }
+                }
+            }
+
+            const auto refl = closest_inter[0];
+            const auto refr = closest_inter[1];
+
+            if (refl)
+            {
+                int left = tree.push_left(refl.value(), mother);
+
+                if (refl.value().power2() >= 0.1)
+                {
+                    stack.push_back(left);
+                }
+            }
+            if (refr)
+            {
+                int right = tree.push_right(refr.value(), mother);
+
+                if (refr.value().power2() >= 0.1)
+                {
+                    stack.push_back(right);
+                }
+            }
+                        
+        }
+    }
+
+
+    std::cout << "MARC000O! \n";
+
+    for (auto & tree: rays)
+    {
+        for (auto parent = 0; parent < tree.nodes.size(); ++parent)
+        {
+        std::cout << "MARCO! \n";
+            auto & ray = tree.nodes[parent];
+            auto & pt0 = ray.source;
+            auto & color = ray.color;
+
+            auto left = tree.child_left(parent); 
+            auto right = tree.child_right(parent);
+
+            auto ptl = (left >= 0)?tree.nodes[left].source : ray.infinity();
+
+            auto seg_refl = pt0^ptl;
+
+            std::cout << "ACTUAL COLOR " << color[0] << " " << color[1] << " " << color[2] << std::endl;
+
+            scene.push(CGA::segment_object(seg_refl), inst.colored(color));
+
+            
+            //auto ptr = (left >= 0)?tree.nodes[left].source : ray.infinity();
+            //auto seg_refr = pt0^ptr;  
+            //scene.push(CGA::segment_object(seg_refr), inst.colored(color));
+        std::cout << "POLO! \n";
+         
+        }
+    }
+
+    
+}
+
+*/
+
+
 
 int main(int argc, char** argv)
 {
@@ -975,7 +1533,7 @@ int main(int argc, char** argv)
     }
     else
     {
-        ray_tracer2(scene);
+        ray_tracer3(scene);
     }
     // test
     {
@@ -1052,9 +1610,6 @@ int main(int argc, char** argv)
     auto pgrm = loadProgram(path_vs, path_fs);
 
     pgrm.use();
-
-    glEnable(GL_DEPTH_TEST);
-    
 
 
 
@@ -1137,6 +1692,52 @@ int main(int argc, char** argv)
             
         }
     }
+
+
+
+    {
+        float nu = 2.0;
+        for (float x = -10.0; x < 10.0; x+=0.1)
+        {
+            auto R = reflection_coef(x, nu);
+
+            std::cout << "nu = " << nu << "   x = " << x << "    R = " << R << std::endl;
+        }
+
+    }
+    {
+        std::cout << "tetazttazeazgeuiqsfgvasougvcauoigvaeuoigv\n";
+
+        auto center = CGA::point(1.0, 1.0);
+        auto r = 2.0;
+
+        auto p = CGA::rand_point();
+        
+        auto c = CGA::circle(center, r);
+
+        auto test = p|(!c);
+        auto diff=  CGA::point_to_glm(p) - CGA::point_to_glm(center);
+        auto u2 = glm::dot(diff, diff);
+        auto expected = (u2 + r*r)/2.0;
+
+
+        
+        std::cout << " CIRCLE :" << c << std::endl; 
+        std::cout << "!CIRCLE :" << !c << std::endl; 
+        std::cout << "p       :" << p << std::endl; 
+        std::cout << "r       :" << r << std::endl; 
+        std::cout << "u2      :" << u2 << std::endl; 
+        std::cout << "test    :" << test << std::endl;
+        std::cout << "expect  :" << expected << std::endl; 
+       
+        
+    }
+    glLineWidth(3.0);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);  
+    glBlendEquation(GL_MAX);
+    
     // Application loop:
     bool done = false;
     while(!done) {
