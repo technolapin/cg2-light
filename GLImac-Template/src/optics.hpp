@@ -123,8 +123,6 @@ struct Circle: public OpticObject
         const auto n = normal(pt);
         return -n[c2ga::E2]*CGA::e1() + n[c2ga::E1]*CGA::e2();
     }
-
-    
 };
 
 
@@ -165,9 +163,6 @@ struct SegMesh: public OpticObject
 
             segments.push_back(seg);
         }
-        
-        
-        
     }
 };
     
