@@ -342,9 +342,24 @@ int main(int argc, char** argv)
     Scene scene_objects;
     std::vector<OpticObject> optics;
 
-    create_circle(scene_objects, optics, unit_circle, glm::vec2(0), 0.1, glm::vec3(0.3, 0.9, 0.9), 2.0);
+    {
+        std::random_device rd;  //Will be used to obtain a seed for the random number engine
+        std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+        std::uniform_real_distribution<> dis(-1.0, 1.0);
 
-    create_circle(scene_objects, optics, unit_circle, glm::vec2(0), 0.2, glm::vec3(0.3, 0.9, 0.9), 2.0);
+        
+        for (auto i = 0; i < 10; ++i)
+        {
+            const glm::vec2 center = {dis(gen), dis(gen)};
+            const float rad = 0.2 + dis(gen)/10.;
+            const glm::vec3 color = {std::abs(dis(gen))*0.9, std::abs(dis(gen))*0.9, std::abs(dis(gen))*0.9};
+            const float ratio = 2.0;
+            create_circle(scene_objects, optics, unit_circle, center, rad, color, ratio);
+
+        }
+    }
+
+    
     {
         std::vector<glm::vec2> vertices = {
             {0.0f+0.5, 0.0f+0.5},
@@ -393,7 +408,7 @@ int main(int argc, char** argv)
                    mouse_pos,
                    {0.9, 0.9, 0.3},
                    optics,
-                   0.1);
+                   0.3);
 
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
