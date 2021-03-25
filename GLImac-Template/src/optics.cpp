@@ -71,14 +71,6 @@ Ray::intersect(const Segment & segment) const
     }
 }
 
-template<>
-std::array<std::optional<Ray>, 2>
-Ray::reflect_on(const Segment & segment, const Mvec & valid_inter, const Mvec & normal) const
-{
-    const auto tangent = -normal[c2ga::E2]*CGA::e1() + normal[c2ga::E1]*CGA::e2();
-    return reflect(valid_inter, normal, tangent, segment.color, segment.optic_ratio);
-    
-}
 
 
 template<>
@@ -119,26 +111,6 @@ Ray::intersect(const Circle & circle) const
         return {};
     }
 }
-
-template<>
-std::array<std::optional<Ray>, 2>
-Ray::reflect_on(const Circle & circle, const Mvec & valid_inter, const Mvec & normal) const
-{
-    const auto tangent = -normal[c2ga::E2]*CGA::e1() + normal[c2ga::E1]*CGA::e2();
-    return reflect(valid_inter, normal, tangent, circle.color, circle.optic_ratio);
-}
-
-template<>
-std::array<std::optional<Ray>, 2>
-Ray::reflect_on(const SegMesh & mesh, const Mvec & valid_inter, const Mvec & normal) const
-{
-    const auto tangent = -normal[c2ga::E2]*CGA::e1() + normal[c2ga::E1]*CGA::e2();
-    return reflect(valid_inter, normal, tangent, mesh.color, mesh.optic_ratio);
-}
-
-
-
-
 
 
 template<>
@@ -189,3 +161,30 @@ Ray::intersect(const SegMesh & mesh) const
 }
 
 
+
+template<>
+std::optional<std::array<Mvec, 2>>
+Ray::intersect(const OpticObject & obj) const
+{
+    switch (obj.type)
+    {
+        case SegmentT:
+            return intersect(obj._segment);
+        case CircleT:
+            return intersect(obj._circle);
+//        case SegMeshT:
+        default: // I cried
+            return intersect(obj._mesh);
+            
+    }
+}
+
+template<>
+std::array<std::optional<Ray>, 2>
+Ray::reflect_on(const OpticObject & obj,
+                const Mvec & valid_inter,
+                const Mvec & normal) const
+{
+    const auto tangent = -normal[c2ga::E2]*CGA::e1() + normal[c2ga::E1]*CGA::e2();
+    return reflect(valid_inter, normal, tangent, obj.color, obj.optic_ratio);
+}

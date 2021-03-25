@@ -107,13 +107,14 @@ ray_tracer3(Scene & scene, const glm::vec2 & source_coords)
     auto cir_empty = circle(100);
     Instance inst;
 
-    auto segment = Circle({0., 0}, 0.2, {0.7, 0.9, 0.9}, 2.0);
+    auto segment = OpticObject::circle({0.0, 0.0}, 0.1, {0.4, 0.9, 0.9}, 2.0);
     auto outer_circle = CGA::circle(CGA::e0(), 2.0);
+    /*
     scene.push(cir_empty, Instance()
                .translate(CGA::point_to_glm(segment.center))
                .scale(segment.radius)
                .colored(segment.color));
-    
+    */
     
     auto pt_source = CGA::point(source_coords);
     {

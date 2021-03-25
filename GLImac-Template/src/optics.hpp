@@ -6,7 +6,7 @@ struct Ray
     
     glm::vec3 color;
 
-    Ray(Mvec pt, Mvec dir, glm::vec3 col):
+    Ray(const Mvec pt, const Mvec dir, const glm::vec3 col):
         ray(pt ^ dir ^ CGA::ei()),
         dir(dir/dir.norm()),
         source(pt),
@@ -56,28 +56,18 @@ struct Ray
     
 };
 
-struct OpticObject
-{
-    glm::vec3 color;
-    float optic_ratio = 1.0;
-    OpticObject(const glm::vec3 & color, const float ratio):
-        color(color),
-        optic_ratio(ratio)
-    {}
-        
-};
 
-struct Segment: public OpticObject
+struct Segment
 {
     Mvec segment;
     Mvec normal;
     Mvec tangent;
     
-    Segment(glm::vec2 vert1, glm::vec2 vert2, glm::vec3 col, float ratio):
+    Segment(const glm::vec2 vert1,
+            const glm::vec2 vert2):
         segment(CGA::point(vert1)^CGA::point(vert2)),
         normal(CGA::line_normal(CGA::point(vert1)^CGA::point(vert2)^CGA::ei())),
-        tangent(CGA::line_director_vec(CGA::point(vert1)^CGA::point(vert2)^CGA::ei())),
-        OpticObject(col, ratio)
+        tangent(CGA::line_director_vec(CGA::point(vert1)^CGA::point(vert2)^CGA::ei()))
     {}
 
 };
@@ -87,20 +77,17 @@ struct Segment: public OpticObject
 
 
 
-struct Circle: public OpticObject
+struct Circle
 {
     Mvec circle;
     Mvec center;
     float radius;
     
     Circle(const glm::vec2 center,
-           const float radius,
-           const glm::vec3 col,
-           const float ratio):
+           const float radius):
         circle(CGA::circle(CGA::point(center), radius)),
         center(CGA::point(center)),
-        radius(radius),
-        OpticObject(col, ratio)
+        radius(radius)
     {}
 
     bool
@@ -126,16 +113,13 @@ struct Circle: public OpticObject
 };
 
 
-struct SegMesh: public OpticObject
+struct SegMesh
 {
     std::vector<Mvec> segments;
     // for rought intersection check (can be made smaller)
     Mvec circle;
     
-    SegMesh(const std::vector<glm::vec2> & vertices,
-            const glm::vec3 & color,
-            const float ratio):
-        OpticObject(color, ratio)
+    SegMesh(const std::vector<glm::vec2> & vertices)
     {
         auto center = glm::vec2(0);
         auto radius = 0.0f;
@@ -167,3 +151,129 @@ struct SegMesh: public OpticObject
 };
     
 
+
+
+enum OpticObjT
+{
+    SegmentT,
+    CircleT,
+    SegMeshT
+};
+
+
+struct OpticObject
+{
+    OpticObjT type;
+    glm::vec3 color;
+    float optic_ratio;
+
+    union
+    {
+        Segment _segment;
+        Circle _circle;
+        SegMesh _mesh;
+
+    };
+
+    OpticObject():
+        type(SegmentT),
+        color(glm::vec3(0)),
+        optic_ratio(1.0),
+        _segment(Segment(glm::vec2(0), glm::vec2(0)))
+    {
+        /*
+        {
+                SegmentT,
+                glm::vec3(0),
+                1.0,
+                Segment(glm::vec2(0), glm::vec2(0))
+
+            };
+        */
+    }
+    
+    OpticObject(const OpticObject & obj):
+        type(obj.type),
+        color(obj.color),
+        optic_ratio(obj.optic_ratio)
+    {
+        switch (obj.type)
+        {
+            case SegmentT:
+                _segment = obj._segment;
+                break;
+            case CircleT:
+                _circle = obj._circle;
+                break;
+            case SegMeshT:
+                _mesh = obj._mesh;
+                break;
+        }
+    }
+    
+    ~OpticObject()
+    {
+        switch (type)
+        {
+            case SegmentT:
+                _segment.~Segment();
+                break;
+            case CircleT:
+                _circle.~Circle();
+                break;
+            case SegMeshT:
+                _mesh.~SegMesh();
+                break;
+        }
+    }
+
+    
+
+    static OpticObject 
+    segment(const glm::vec2 & vert1,
+            const glm::vec2 & vert2,
+            const glm::vec3 & col,
+            const float ratio)
+    {
+        OpticObject obj;
+        obj.type = SegmentT;
+        obj.color = col;
+        obj.optic_ratio = ratio;
+        obj._segment = Segment(vert1, vert2);
+
+        return obj;
+    }
+
+    static OpticObject 
+    circle(const glm::vec2 & center,
+           const float radius,
+           const glm::vec3 & col,
+           const float ratio)
+    {
+        OpticObject obj;
+        obj.type = CircleT;
+        obj.color = col;
+        obj.optic_ratio = ratio;
+        obj._circle = Circle(center, radius);
+
+        return obj;
+    }
+
+    static OpticObject 
+    mesh(const std::vector<glm::vec2> & vertices,
+         const glm::vec3 & col,
+         const float ratio)
+    {
+        OpticObject obj;
+        obj.type = SegmentT;
+        obj.color = col;
+        obj.optic_ratio = ratio;
+        obj._mesh = SegMesh(vertices);
+
+        return obj;
+    }
+
+
+
+    
+};
