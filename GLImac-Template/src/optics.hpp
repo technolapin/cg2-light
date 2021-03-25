@@ -254,14 +254,12 @@ struct OpticObject
            const glm::vec3 & col,
            const float ratio)
     {
-        std::cout << "MARCO" << std::endl;
         OpticObject obj;
         obj.type = CircleT;
         obj.color = col;
         obj.optic_ratio = ratio;
         obj._circle = Circle(center, radius);
 
-        std::cout << "MARCO" << std::endl;
         return obj;
     }
 
@@ -271,10 +269,13 @@ struct OpticObject
          const float ratio)
     {
         OpticObject obj;
-        obj.type = SegmentT;
+        obj.type = SegMeshT;
         obj.color = col;
         obj.optic_ratio = ratio;
-        obj._mesh = SegMesh(vertices);
+        std::cout << "eazeazeazeazeaz" <<std::endl;
+//        obj._mesh = SegMesh(vertices);
+        new (&obj._mesh) SegMesh(vertices);
+    std::cout << "eazeazeaze" <<std::endl;
 
         return obj;
     }

@@ -29,6 +29,7 @@ build_rays(Scene & scene,
         rays.push_back(tree);
         
     } 
+    std::cout << "MARCO" << std::endl;
 
     for (auto & tree: rays)
     {
@@ -36,22 +37,25 @@ build_rays(Scene & scene,
 
         while (stack.size() != 0)
         {
-            int mother = stack.back();
+            const int mother = stack.back();
             stack.pop_back();
-            const auto & ray = tree.nodes[mother];
-
+            const auto ray = tree.nodes[mother];
             // loop over segments (one for now)
             for (const auto & obj: objects)
             {
+                std::cout << "AAAAAA\n";
                 const auto intern = ray.intersect(obj);
+                std::cout << "aaaaabis\n";
                 if (intern)
                 {
+                    std::cout << "test\n";
                     const auto & inter = intern.value()[0];
                     const auto & norm = intern.value()[1];
                     const auto refs = ray.reflect_on(obj, inter, norm);
                     const auto refl = refs[0];
                     const auto refr = refs[1];
- 
+                    std::cout << "marco" << std::endl;
+
                     if (refl)
                     {
                         int left = tree.push_left(refl.value(), mother); 
@@ -69,10 +73,13 @@ build_rays(Scene & scene,
                             stack.push_back(right);
                         }
                     }
+                    std::cout << "polo" << std::endl;
                 }
+                std::cout << "BBBBBB\n";
             }
         }
     }
+    std::cout << "POLO" << std::endl;
 
     for (auto & tree: rays)
     {
@@ -222,6 +229,59 @@ ray_tracer3(Scene & scene, const glm::vec2 & source_coords)
 }
 
 
+void
+create_circle(Scene & scene,
+              std::vector<OpticObject> & optics,
+              const GLObject & unit_circle,
+              const glm::vec2 center,
+              const float radius,
+              const glm::vec3 color,
+              const float optic_ratio)
+{
+    const auto obj = OpticObject::circle(center,
+                                         radius,
+                                         color,
+                                         optic_ratio);
+
+    optics.push_back(obj);
+    
+    const auto inst = Instance().colored(color)
+        .translate(center)
+        .scale(radius);
+
+    scene.push(unit_circle, inst);
+}
+
+
+void
+create_mesh(Scene & scene,
+            std::vector<OpticObject> & optics,
+            const std::vector<glm::vec2> vertices,
+            const glm::vec3 color,
+            const float optic_ratio)
+{ 
+    std::cout << "MARCO" << std::endl; 
+    const auto obj = OpticObject::mesh(vertices,
+                                       color,
+                                       optic_ratio);
+
+    std::cout << "PÖLO" << std::endl;
+    optics.push_back(obj);
+    
+    const auto inst = Instance().colored(color);
+
+    std::vector<Vertex> real_vertices;
+
+    for (const auto & pos: vertices)
+    {
+        real_vertices.push_back(Vertex{pos});
+    }
+   
+    scene.push(GLObject(real_vertices, GL_LINE_LOOP), inst);
+
+
+}
+
 
 
 int main(int argc, char** argv)
@@ -274,16 +334,34 @@ int main(int argc, char** argv)
 
 
 
+    
 
+    const auto unit_circle = circle(64);
 
-
+    
+    Scene scene_objects;
     std::vector<OpticObject> optics;
 
-    const OpticObject obj = OpticObject::circle(glm::vec2(0),
-                                                0.1,
-                                                glm::vec3(0.3f, 0.9f, 0.9f),
-                                                2.0);
-    optics.push_back(obj);
+    create_circle(scene_objects, optics, unit_circle, glm::vec2(0), 0.1, glm::vec3(0.3, 0.9, 0.9), 2.0);
+
+    create_circle(scene_objects, optics, unit_circle, glm::vec2(0), 0.2, glm::vec3(0.3, 0.9, 0.9), 2.0);
+    {
+        std::vector<glm::vec2> vertices = {
+            {0.0f+0.5, 0.0f+0.5},
+            {0.1f+0.5, 0.0f+0.5},
+            {0.2f+0.5, 0.1f+0.5},
+            {0.2f+0.5, 0.2f+0.5},
+            {-0.1f+0.5, 0.4f+0.5},
+        };
+
+    create_mesh(scene_objects, optics, vertices, glm::vec3(0.3, 0.9, 0.9), 2.0);
+        
+        
+    }
+
+
+    
+
     
     // Application loop:
     bool done = false;
@@ -308,10 +386,10 @@ int main(int argc, char** argv)
         const auto mouse_pixel_pos = windowManager.getMousePosition();
         const glm::vec2 mouse_pos = {((float) mouse_pixel_pos[0])/((float) width)*2.0f -1.0f,
             -((float) mouse_pixel_pos[1])/((float) height)*2.0f +1.0f};
-        
-        Scene scene;
+
+        Scene scene_rays;
 //        ray_tracer3(scene, mouse_pos);
-        build_rays(scene,
+        build_rays(scene_rays,
                    mouse_pos,
                    {0.9, 0.9, 0.3},
                    optics,
@@ -322,7 +400,9 @@ int main(int argc, char** argv)
 
         // test draw
         //rdr.setup();
-        rdr.draw(scene);
+        
+        rdr.draw(scene_objects);
+        rdr.draw(scene_rays);
         
         // Update the display
         windowManager.swapBuffers();
