@@ -1,3 +1,4 @@
+
 #version 300 es
 precision mediump float;
 
@@ -10,4 +11,3 @@ void main()
     float power = dot(color, color)/3.0;
     fFragColor = vec4(color, power);
 }
-

@@ -77,15 +77,9 @@ template<>
 std::optional<std::array<Mvec, 2>>
 Ray::intersect(const Circle & circle) const
 {
-    std::cout << "marco circle\n";
 
-    std::cout << ray << std::endl;
-    std::cout << dir << std::endl;
-    std::cout << source << std::endl;
-    std::cout << circle.circle << std::endl;
     const auto inters = CGA::extractPairPoint(CGA::intersect(ray, circle.circle));
 
-    std::cout << "polo circle\n";    
     // enforcing type is mandatory because Mvec comparison will cause weird behaviors
     const float sign0 = (inters[0] - source) | dir;
     const float sign1 = (inters[1] - source) | dir;
@@ -176,23 +170,16 @@ Ray::intersect(const OpticObject & obj) const
     switch (obj.type)
     {
         case SegmentT:
-            std::cout << "INTERSECT A SEGMENT" << std::endl;
             return intersect(obj._segment);
         case CircleT:
         {
-            std::cout << "INTERSECT A CIRCLE" << std::endl;
             const auto & cir = obj._circle;
-            std::cout << "FOUND THE CIRCLE\n";
-            std::cout << cir.circle << std::endl;
             const auto ret = intersect(cir);
-            std::cout << "INTERSECTed A CIRCLE" << std::endl;
             return ret;
         }
-//        case SegMeshT:
-        default: // I cried
-            std::cout << "INTERSECT A MESH OR ERROR" << std::endl;
 
-            return intersect(obj._mesh);
+       default: // I cried
+          return intersect(obj._mesh);
             
     }
 }

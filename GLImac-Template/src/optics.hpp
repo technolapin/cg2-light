@@ -272,10 +272,7 @@ struct OpticObject
         obj.type = SegMeshT;
         obj.color = col;
         obj.optic_ratio = ratio;
-        std::cout << "eazeazeazeazeaz" <<std::endl;
-//        obj._mesh = SegMesh(vertices);
         new (&obj._mesh) SegMesh(vertices);
-    std::cout << "eazeazeaze" <<std::endl;
 
         return obj;
     }

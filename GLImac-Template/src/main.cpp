@@ -29,7 +29,6 @@ build_rays(Scene & scene,
         rays.push_back(tree);
         
     } 
-    std::cout << "MARCO" << std::endl;
 
     for (auto & tree: rays)
     {
@@ -43,18 +42,14 @@ build_rays(Scene & scene,
             // loop over segments (one for now)
             for (const auto & obj: objects)
             {
-                std::cout << "AAAAAA\n";
                 const auto intern = ray.intersect(obj);
-                std::cout << "aaaaabis\n";
                 if (intern)
                 {
-                    std::cout << "test\n";
                     const auto & inter = intern.value()[0];
                     const auto & norm = intern.value()[1];
                     const auto refs = ray.reflect_on(obj, inter, norm);
                     const auto refl = refs[0];
                     const auto refr = refs[1];
-                    std::cout << "marco" << std::endl;
 
                     if (refl)
                     {
@@ -73,13 +68,10 @@ build_rays(Scene & scene,
                             stack.push_back(right);
                         }
                     }
-                    std::cout << "polo" << std::endl;
                 }
-                std::cout << "BBBBBB\n";
             }
         }
     }
-    std::cout << "POLO" << std::endl;
 
     for (auto & tree: rays)
     {
@@ -260,12 +252,10 @@ create_mesh(Scene & scene,
             const glm::vec3 color,
             const float optic_ratio)
 { 
-    std::cout << "MARCO" << std::endl; 
     const auto obj = OpticObject::mesh(vertices,
                                        color,
                                        optic_ratio);
 
-    std::cout << "PÖLO" << std::endl;
     optics.push_back(obj);
     
     const auto inst = Instance().colored(color);
@@ -288,8 +278,8 @@ int main(int argc, char** argv)
 {
     
 
-    const int width = 1000;
-    const int height = 1000;
+    const int width = 700;
+    const int height = 700;
     // Initialize SDL and open a window
     SDLWindowManager windowManager(width, height, "GLImac");
     glm::vec2 dims((float) width, (float) height);
@@ -348,7 +338,7 @@ int main(int argc, char** argv)
         std::uniform_real_distribution<> dis(-1.0, 1.0);
 
         
-        for (auto i = 0; i < 10; ++i)
+        for (auto i = 0; i < 5; ++i)
         {
             const glm::vec2 center = {dis(gen), dis(gen)};
             const float rad = 0.2 + dis(gen)/10.;
