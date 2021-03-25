@@ -271,6 +271,19 @@ int main(int argc, char** argv)
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);  
     glBlendEquation(GL_MAX);
+
+
+
+
+
+
+    std::vector<OpticObject> optics;
+
+    const OpticObject obj = OpticObject::circle(glm::vec2(0),
+                                                0.1,
+                                                glm::vec3(0.3f, 0.9f, 0.9f),
+                                                2.0);
+    optics.push_back(obj);
     
     // Application loop:
     bool done = false;
@@ -297,8 +310,12 @@ int main(int argc, char** argv)
             -((float) mouse_pixel_pos[1])/((float) height)*2.0f +1.0f};
         
         Scene scene;
-
-        ray_tracer3(scene, mouse_pos);
+//        ray_tracer3(scene, mouse_pos);
+        build_rays(scene,
+                   mouse_pos,
+                   {0.9, 0.9, 0.3},
+                   optics,
+                   0.1);
 
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

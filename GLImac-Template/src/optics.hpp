@@ -200,17 +200,21 @@ struct OpticObject
         switch (obj.type)
         {
             case SegmentT:
-                _segment = obj._segment;
+                new (&_segment) Segment(obj._segment);
                 break;
             case CircleT:
-                _circle = obj._circle;
+            {
+                new (&_circle) Circle(obj._circle);
                 break;
+            }
             case SegMeshT:
-                _mesh = obj._mesh;
+                new (&_mesh) SegMesh(obj._mesh);
                 break;
         }
     }
-    
+
+    //OpticObject(OpticObject&&) = default;
+
     ~OpticObject()
     {
         switch (type)
@@ -250,12 +254,14 @@ struct OpticObject
            const glm::vec3 & col,
            const float ratio)
     {
+        std::cout << "MARCO" << std::endl;
         OpticObject obj;
         obj.type = CircleT;
         obj.color = col;
         obj.optic_ratio = ratio;
         obj._circle = Circle(center, radius);
 
+        std::cout << "MARCO" << std::endl;
         return obj;
     }
 
